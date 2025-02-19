@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-
+      
 jobs:
   terraform-checks:
     name: Run Terraform Checks
@@ -20,12 +20,12 @@ jobs:
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
-        working-directory: AWS-VPC
+        working-directory: VPC-Setup
 
       - name: Terraform Init
         run: terraform init
-        working-directory: AWS-VPC
+        working-directory: VPC-Setup
 
       - name: Terraform Validate
         run: terraform validate
-        working-directory: AWS-VPC
+        working-directory: VPC-Setup

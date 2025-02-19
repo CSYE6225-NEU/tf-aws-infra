@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "aws_profile" {
   description = "AWS CLI profile to use"
   type        = string
-  default     = "demo"
+  default     = "your_aws_profile"
 }
 
 variable "vpc_cidr" {
