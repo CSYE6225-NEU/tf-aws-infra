@@ -20,12 +20,12 @@ jobs:
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
-        working-directory: VPC-Setup
+        working-directory: AWS-VPC
 
       - name: Terraform Init
         run: terraform init
-        working-directory: VPC-Setup
+        working-directory: AWS-VPC
 
       - name: Terraform Validate
         run: terraform validate
-        working-directory: VPC-Setup
+        working-directory: AWS-VPC
