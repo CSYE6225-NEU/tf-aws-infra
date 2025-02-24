@@ -60,6 +60,10 @@ resource "aws_subnet" "private_subnets" {
 
   tags = {
     Name = "${local.unique_vpc_name}-Private-Subnet-${count.index}"
+
+
+
+
   }
 }
 
