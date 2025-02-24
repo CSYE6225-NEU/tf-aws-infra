@@ -14,7 +14,10 @@ locals {
   base_vpc_name = "Demo-VPC"
 
   # Count how many existing VPCs start with "Demo-VPC"
-  existing_vpc_count = length(data.aws_vpcs.existing_vpcs.ids) + 1
+  existing_vpc_count = length(data.aws_vpcs.
+  
+  
+  existing_vpcs.ids) + 1
 
   # Generate a unique name by appending the counter
   unique_vpc_name = "${local.base_vpc_name}-${local.existing_vpc_count}"
