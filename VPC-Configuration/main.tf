@@ -3,108 +3,157 @@ provider "aws" {
   profile = var.aws_profile
 }
 
-# Fetch the first 3 availability zones for the selected region
+# Fetch available AZs dynamically
 data "aws_availability_zones" "available" {}
 
-# Find existing VPCs with the "Demo-VPC" prefix
-data "aws_vpcs" "existing_vpcs" {}
+# Fetch all existing VPCs in the region
+data "aws_vpcs" "existing" {}
 
-# Generate Unique VPC Name with Incrementing Counter
-locals {
-  base_vpc_name = "Demo-VPC"
-
-  # Count how many existing VPCs start with "Demo-VPC"
-  existing_vpc_count = length(data.aws_vpcs.existing_vpcs.ids) + 1
-
-  # Generate a unique name by appending the counter
-  unique_vpc_name = "${local.base_vpc_name}-${local.existing_vpc_count}"
-
-  # Select the first 3 AZs dynamically
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.subnet_count)
-
-  # Generate Subnet CIDRs Dynamically
-  public_subnet_cidrs  = [for i in range(var.subnet_count) : cidrsubnet(var.vpc_cidr, 8, i)]
-  private_subnet_cidrs = [for i in range(var.subnet_count) : cidrsubnet(var.vpc_cidr, 8, i + var.subnet_count)]
-}
-
-# Create a uniquely named VPC
+# VPC Creation
 resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_support   = true
-  enable_dns_hostnames = true
+  cidr_block = var.vpc_cidr
 
   tags = {
-    Name = local.unique_vpc_name
+    Name = "My-VPC-${length(data.aws_vpcs.existing.ids) + 1}"
   }
 }
 
-# Create Public Subnets (1 per AZ)
-resource "aws_subnet" "public_subnets" {
-  count                   = var.subnet_count
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = local.public_subnet_cidrs[count.index]
-  availability_zone       = local.availability_zones[count.index]
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "${local.unique_vpc_name}-Public-Subnet-${count.index}"
-  }
-}
-
-# Create Private Subnets (1 per AZ)
-resource "aws_subnet" "private_subnets" {
-  count             = var.subnet_count
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = local.private_subnet_cidrs[count.index]
-  availability_zone = local.availability_zones[count.index]
-
-  tags = {
-    Name = "${local.unique_vpc_name}-Private-Subnet-${count.index}"
-  }
-}
-
-# Create Internet Gateway
+# Internet Gateway
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "${local.unique_vpc_name}-Internet-Gateway"
+    Name = "My-Internet-Gateway"
   }
 }
 
-# Create Public Route Table
+# Public Subnets (Dynamically assigned to Availability Zones)
+resource "aws_subnet" "public" {
+  count = length(var.public_subnet_cidrs)
+
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = element(data.aws_availability_zones.available.names, count.index)
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "Public-Subnet-${count.index + 1}"
+  }
+}
+
+# Private Subnets (Dynamically assigned to AZs)
+resource "aws_subnet" "private" {
+  count = length(var.private_subnet_cidrs)
+
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet_cidrs[count.index]
+  availability_zone = element(data.aws_availability_zones.available.names, count.index)
+
+  tags = {
+    Name = "Private-Subnet-${count.index + 1}"
+  }
+}
+
+# Public Route Table
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.gw.id
-  }
-
   tags = {
-    Name = "${local.unique_vpc_name}-Public-Route-Table"
+    Name = "Public-Route-Table"
   }
+}
+
+# Public Route (Internet Access)
+resource "aws_route" "public_internet_access" {
+  route_table_id         = aws_route_table.public_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.gw.id
 }
 
 # Associate Public Subnets with Public Route Table
-resource "aws_route_table_association" "public" {
-  count          = var.subnet_count
-  subnet_id      = aws_subnet.public_subnets[count.index].id
+resource "aws_route_table_association" "public_assoc" {
+  count          = length(var.public_subnet_cidrs)
+  subnet_id      = element(aws_subnet.public[*].id, count.index)
   route_table_id = aws_route_table.public_rt.id
 }
 
-# Create Private Route Table
+# Private Route Table
 resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "${local.unique_vpc_name}-Private-Route-Table"
+    Name = "Private-Route-Table"
   }
 }
 
 # Associate Private Subnets with Private Route Table
-resource "aws_route_table_association" "private" {
-  count          = var.subnet_count
-  subnet_id      = aws_subnet.private_subnets[count.index].id
+resource "aws_route_table_association" "private_assoc" {
+  count          = length(var.private_subnet_cidrs)
+  subnet_id      = element(aws_subnet.private[*].id, count.index)
   route_table_id = aws_route_table.private_rt.id
+}
+
+# Application Security Group
+resource "aws_security_group" "application_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = var.app_port
+    to_port     = var.app_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "Web-Instance-Application-SG"
+  }
+}
+
+# EC2 Instance
+resource "aws_instance" "web" {
+  ami                    = var.ami_id
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.public[0].id # Launch in first public subnet
+  vpc_security_group_ids = [aws_security_group.application_sg.id]
+  key_name               = var.key_name
+
+  root_block_device {
+    volume_size           = var.volume_size
+    volume_type           = var.volume_type
+    delete_on_termination = true
+  }
+
+  disable_api_termination = false
+
+  tags = {
+    Name = "My-VPC-${length(data.aws_vpcs.existing.ids) + 1}-Web-Instance"
+  }
 }
