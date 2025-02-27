@@ -2,26 +2,22 @@ output "vpc_id" {
   value = aws_vpc.main.id
 }
 
-output "vpc_name" {
-  value = local.unique_vpc_name
+output "internet_gateway_id" {
+  value = aws_internet_gateway.gw.id
 }
 
-output "aws_region" {
-  value = var.aws_region
+output "public_subnets" {
+  value = aws_subnet.public[*].id
 }
 
-output "availability_zones" {
-  value = local.availability_zones
+output "private_subnets" {
+  value = aws_subnet.private[*].id
 }
 
-output "public_subnet_ids" {
-  value = aws_subnet.public_subnets[*].id
+output "public_route_table_id" {
+  value = aws_route_table.public_rt.id
 }
 
-output "private_subnet_ids" {
-  value = aws_subnet.private_subnets[*].id
-}
-
-output "terraform_state_key" {
-  value = "terraform-${var.aws_region}-${replace(var.vpc_cidr, ".", "-")}.tfstate"
+output "private_route_table_id" {
+  value = aws_route_table.private_rt.id
 }
