@@ -125,3 +125,50 @@ variable "gcp_storage_region" {
   type        = string
   default     = "us"
 }
+
+# --------------------------------------------------------------------------------------
+# DATABASE VARIABLES
+# --------------------------------------------------------------------------------------
+
+variable "db_engine" {
+  description = "Database engine type (mysql, mariadb, or postgres)"
+  type        = string
+  default     = "mysql"
+}
+
+variable "db_engine_version" {
+  description = "Major version for DB parameter group family"
+  type        = string
+  default     = "8.0"
+}
+
+variable "db_engine_full_version" {
+  description = "Full version for DB engine"
+  type        = string
+  default     = "8.0.35"
+}
+
+variable "db_instance_class" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "db_allocated_storage" {
+  description = "Allocated storage for RDS instance in GB"
+  type        = number
+  default     = 20
+}
+
+variable "db_port" {
+  description = "Port for database connections"
+  type        = number
+  default     = 3306 # Use 5432 for PostgreSQL
+}
+
+variable "db_password" {
+  description = "Master password for database"
+  type        = string
+  sensitive   = true
+  # Don't set a default for sensitive values
+}

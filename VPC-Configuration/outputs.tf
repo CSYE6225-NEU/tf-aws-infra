@@ -69,3 +69,17 @@ output "application_url" {
   description = "URL to access the application"
   value       = "http://${aws_instance.web.public_ip}:${var.app_port}"
 }
+
+# --------------------------------------------------------------------------------------
+# DATABASE OUTPUTS
+# --------------------------------------------------------------------------------------
+
+output "rds_endpoint" {
+  description = "Endpoint of the RDS instance"
+  value       = aws_db_instance.csye6225_db.endpoint
+}
+
+output "rds_database_name" {
+  description = "Database name"
+  value       = aws_db_instance.csye6225_db.db_name
+}
