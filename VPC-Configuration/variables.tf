@@ -21,7 +21,7 @@ variable "aws_profile" {
 variable "aws_base_ami" {
   description = "ID of the custom AMI created by Packer for the application"
   type        = string
-  default     = "ami-05cf7f74fb73e9fdb"
+  default     = "ami-06e6fcf44808ee14c"
 }
 
 variable "aws_vm_size" {
@@ -124,4 +124,50 @@ variable "gcp_storage_region" {
   description = "GCP region for storage resources"
   type        = string
   default     = "us"
+}
+
+# --------------------------------------------------------------------------------------
+# DATABASE VARIABLES
+# --------------------------------------------------------------------------------------
+
+variable "db_engine" {
+  description = "Database engine type (mysql, mariadb, or postgres)"
+  type        = string
+  default     = "mysql"
+}
+
+variable "db_engine_version" {
+  description = "Major version for DB parameter group family"
+  type        = string
+  default     = "8.0"
+}
+
+variable "db_engine_full_version" {
+  description = "Full version for DB engine"
+  type        = string
+  default     = "8.0.35"
+}
+
+variable "db_instance_class" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "db_allocated_storage" {
+  description = "Allocated storage for RDS instance in GB"
+  type        = number
+  default     = 20
+}
+
+variable "db_port" {
+  description = "Port for database connections"
+  type        = number
+  default     = 3306
+}
+
+variable "db_password" {
+  description = "Master password for database"
+  type        = string
+  sensitive   = true
 }

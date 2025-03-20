@@ -4,6 +4,10 @@ provider "aws" {
   profile = var.aws_profile
 }
 
+# Random provider for generating unique identifiers
+provider "random" {
+}
+
 # --------------------------------------------------------------------------------------
 # DATA SOURCES
 # --------------------------------------------------------------------------------------
@@ -165,22 +169,52 @@ resource "aws_security_group" "application_sg" {
 
 # EC2 instance running the web application
 resource "aws_instance" "web" {
-  ami                    = var.aws_base_ami        # Custom AMI built with Packer
-  instance_type          = var.aws_vm_size         # Instance size
-  subnet_id              = aws_subnet.public[0].id # Deploy in first public subnet
+  ami                    = var.aws_base_ami
+  instance_type          = var.aws_vm_size
+  subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.application_sg.id]
-  key_name               = var.key_name # SSH key for instance access
+  key_name               = var.key_name
+  iam_instance_profile   = aws_iam_instance_profile.ec2_s3_profile.name
 
-  # Storage configuration
+  # User data script to configure application with database details
+  user_data = <<-EOF
+#!/bin/bash
+# Create application config directory if it doesn't exist
+mkdir -p /opt/csye6225
+
+# Create application config file
+cat > /opt/csye6225/.env <<EOL
+# Database Configuration
+DB_HOST=${aws_db_instance.csye6225_db.address}
+DB_PORT=${var.db_port}
+DB_NAME=${aws_db_instance.csye6225_db.db_name}
+DB_USER=${aws_db_instance.csye6225_db.username}
+DB_PASSWORD=${var.db_password}
+
+# S3 Configuration
+S3_BUCKET_NAME=${aws_s3_bucket.app_files.id}
+PORT=${var.app_port}
+EOL
+
+# Update permissions
+chown csye6225:csye6225 /opt/csye6225/.env
+chmod 600 /opt/csye6225/.env
+
+# Restart application service
+systemctl restart webapp.service
+EOF
+
   root_block_device {
     volume_size           = var.volume_size
     volume_type           = var.volume_type
     delete_on_termination = true
   }
 
-  disable_api_termination = false # Allow instance termination
+  disable_api_termination = false
 
   tags = {
     Name = "Webapp-Instance-AMI-${element(split("-", var.aws_base_ami), 1)}"
   }
+
+  depends_on = [aws_db_instance.csye6225_db]
 }
