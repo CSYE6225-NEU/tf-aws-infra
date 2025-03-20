@@ -179,23 +179,29 @@ resource "aws_instance" "web" {
   # User data script to configure application with database details
   user_data = <<-EOF
 #!/bin/bash
+# Create application config directory if it doesn't exist
+mkdir -p /opt/csye6225
+
 # Create application config file
-cat > /opt/csye6225/application.properties <<EOL
+cat > /opt/csye6225/.env <<EOL
 # Database Configuration
-spring.datasource.url=jdbc:${var.db_engine}://${aws_db_instance.csye6225_db.endpoint}/${aws_db_instance.csye6225_db.db_name}
-spring.datasource.username=${aws_db_instance.csye6225_db.username}
-spring.datasource.password=${var.db_password}
+DB_HOST=${aws_db_instance.csye6225_db.address}
+DB_PORT=${var.db_port}
+DB_NAME=${aws_db_instance.csye6225_db.db_name}
+DB_USER=${aws_db_instance.csye6225_db.username}
+DB_PASSWORD=${var.db_password}
 
 # S3 Configuration
-aws.s3.bucket=${aws_s3_bucket.app_files.id}
+S3_BUCKET_NAME=${aws_s3_bucket.app_files.id}
+PORT=${var.app_port}
 EOL
 
 # Update permissions
-chown csye6225:csye6225 /opt/csye6225/application.properties
-chmod 600 /opt/csye6225/application.properties
+chown csye6225:csye6225 /opt/csye6225/.env
+chmod 600 /opt/csye6225/.env
 
 # Restart application service
-systemctl restart csye6225-webapp
+systemctl restart webapp.service
 EOF
 
   root_block_device {

@@ -21,7 +21,7 @@ variable "aws_profile" {
 variable "aws_base_ami" {
   description = "ID of the custom AMI created by Packer for the application"
   type        = string
-  default     = "ami-05cf7f74fb73e9fdb"
+  default     = "ami-06e6fcf44808ee14c"
 }
 
 variable "aws_vm_size" {
@@ -163,12 +163,11 @@ variable "db_allocated_storage" {
 variable "db_port" {
   description = "Port for database connections"
   type        = number
-  default     = 3306 # Use 5432 for PostgreSQL
+  default     = 3306
 }
 
 variable "db_password" {
   description = "Master password for database"
   type        = string
   sensitive   = true
-  # Don't set a default for sensitive values
 }
