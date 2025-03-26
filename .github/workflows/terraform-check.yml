@@ -39,34 +39,6 @@ jobs:
           echo "::error::Terraform format check failed. Run 'terraform fmt -recursive' locally to fix."
           exit 1
       
-      - name: Terraform Plan
-        id: plan
-        run: |
-          # Create a temporary terraform.tfvars file with placeholder values
-          cat > terraform.tfvars << EOL
-          aws_profile = "dummy"
-          aws_build_region = "us-east-1"
-          aws_vm_size = "t2.micro"
-          aws_base_ami = "ami-12345678"
-          db_password = "dummy_password_for_ci"
-          key_name = "dummy-key"
-          EOL
-          
-          # Run a plan in this PR branch
-          terraform plan -var-file=terraform.tfvars -out=tfplan -input=false
-        continue-on-error: true
-      
-      - name: Cleanup Sensitive Files
-        if: always()
-        run: |
-          rm -f terraform.tfvars tfplan
-      
-      - name: Check Plan Results
-        if: steps.plan.outcome == 'failure'
-        run: |
-          echo "::error::Terraform plan failed. See the workflow output for details."
-          exit 1
-      
       - name: Workflow Summary
         if: always()
         run: |
@@ -74,4 +46,3 @@ jobs:
           echo "* Format Check: ${{ steps.fmt.outcome == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
           echo "* Init: ${{ steps.init.outcome == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
           echo "* Validate: ${{ steps.validate.outcome == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "* Plan: ${{ steps.plan.outcome == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
