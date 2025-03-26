@@ -205,6 +205,9 @@ touch /opt/csye6225/webapp.log
 chown csye6225:csye6225 /opt/csye6225/webapp.log
 chmod 644 /opt/csye6225/webapp.log
 
+# Get instance ID from metadata service
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+
 # Configure CloudWatch agent
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
 {
@@ -218,19 +221,19 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
         "collect_list": [
           {
             "file_path": "/var/log/syslog",
-            "log_group_name": "${aws_instance.web.id}-system-logs",
+            "log_group_name": "$INSTANCE_ID-system-logs",
             "log_stream_name": "syslog",
             "timezone": "UTC"
           },
           {
             "file_path": "/var/log/amazon/amazon-cloudwatch-agent/amazon-cloudwatch-agent.log",
-            "log_group_name": "${aws_instance.web.id}-cloudwatch-agent-logs",
+            "log_group_name": "$INSTANCE_ID-cloudwatch-agent-logs",
             "log_stream_name": "amazon-cloudwatch-agent.log",
             "timezone": "UTC"
           },
           {
             "file_path": "/opt/csye6225/webapp.log",
-            "log_group_name": "${aws_instance.web.id}-application-logs",
+            "log_group_name": "$INSTANCE_ID-application-logs",
             "log_stream_name": "webapp.log",
             "timezone": "UTC"
           }
@@ -241,7 +244,7 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
   "metrics": {
     "namespace": "CSYE6225/Custom",
     "append_dimensions": {
-      "InstanceId": "${aws_instance.web.id}",
+      "InstanceId": "$INSTANCE_ID",
       "InstanceType": "${var.aws_vm_size}"
     },
     "metrics_collected": {

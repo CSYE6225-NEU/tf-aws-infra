@@ -21,7 +21,7 @@ variable "aws_profile" {
 variable "aws_base_ami" {
   description = "ID of the custom AMI created by Packer for the application"
   type        = string
-  default     = "ami-0066cff0c3204d41a"
+  default     = "ami-008c469fcb8faa0a1"
 }
 
 variable "aws_vm_size" {
