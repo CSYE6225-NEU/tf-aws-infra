@@ -174,9 +174,9 @@ resource "aws_instance" "web" {
   subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.application_sg.id]
   key_name               = var.key_name
-  iam_instance_profile   = aws_iam_instance_profile.ec2_s3_profile.name
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
-  # User data script to configure application with database details
+  # User data script to configure application with database details and CloudWatch
   user_data = <<-EOF
 #!/bin/bash
 # Create application config directory if it doesn't exist
@@ -199,6 +199,97 @@ EOL
 # Update permissions
 chown csye6225:csye6225 /opt/csye6225/.env
 chmod 600 /opt/csye6225/.env
+
+# Create empty log file for application logs
+touch /opt/csye6225/webapp.log
+chown csye6225:csye6225 /opt/csye6225/webapp.log
+chmod 644 /opt/csye6225/webapp.log
+
+# Configure CloudWatch agent
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/syslog",
+            "log_group_name": "${aws_instance.web.id}-system-logs",
+            "log_stream_name": "syslog",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/amazon/amazon-cloudwatch-agent/amazon-cloudwatch-agent.log",
+            "log_group_name": "${aws_instance.web.id}-cloudwatch-agent-logs",
+            "log_stream_name": "amazon-cloudwatch-agent.log",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/opt/csye6225/webapp.log",
+            "log_group_name": "${aws_instance.web.id}-application-logs",
+            "log_stream_name": "webapp.log",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "CSYE6225/Custom",
+    "append_dimensions": {
+      "InstanceId": "${aws_instance.web.id}",
+      "InstanceType": "${var.aws_vm_size}"
+    },
+    "metrics_collected": {
+      "statsd": {
+        "service_address": ":8125",
+        "metrics_collection_interval": 10,
+        "metrics_aggregation_interval": 60
+      },
+      "cpu": {
+        "resources": ["*"],
+        "measurement": [
+          "cpu_usage_idle",
+          "cpu_usage_iowait",
+          "cpu_usage_user",
+          "cpu_usage_system"
+        ],
+        "totalcpu": true
+      },
+      "disk": {
+        "resources": ["*"],
+        "measurement": [
+          "used_percent",
+          "inodes_free"
+        ]
+      },
+      "diskio": {
+        "resources": ["*"],
+        "measurement": [
+          "io_time"
+        ]
+      },
+      "mem": {
+        "measurement": [
+          "mem_used_percent"
+        ]
+      },
+      "swap": {
+        "measurement": [
+          "swap_used_percent"
+        ]
+      }
+    }
+  }
+}
+EOL
+
+# Restart CloudWatch agent
+systemctl restart amazon-cloudwatch-agent
 
 # Restart application service
 systemctl restart webapp.service
