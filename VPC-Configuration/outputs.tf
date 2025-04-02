@@ -1,7 +1,6 @@
 # --------------------------------------------------------------------------------------
 # NETWORKING OUTPUTS
 # --------------------------------------------------------------------------------------
-
 output "vpc_id" {
   description = "ID of the created VPC"
   value       = aws_vpc.main.id
@@ -35,26 +34,29 @@ output "private_route_table_id" {
 # --------------------------------------------------------------------------------------
 # COMPUTE OUTPUTS
 # --------------------------------------------------------------------------------------
-
-output "aws_instance_id" {
-  description = "ID of the deployed EC2 instance"
-  value       = aws_instance.web.id
+output "autoscaling_group_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.webapp_asg.name
 }
 
-output "aws_instance_public_ip" {
-  description = "Public IP address of the EC2 instance"
-  value       = aws_instance.web.public_ip
+output "launch_template_id" {
+  description = "ID of the Launch Template"
+  value       = aws_launch_template.app_launch_template.id
 }
 
-output "aws_instance_private_ip" {
-  description = "Private IP address of the EC2 instance"
-  value       = aws_instance.web.private_ip
+output "autoscaling_min_size" {
+  description = "Minimum number of instances in the Auto Scaling Group"
+  value       = aws_autoscaling_group.webapp_asg.min_size
+}
+
+output "autoscaling_max_size" {
+  description = "Maximum number of instances in the Auto Scaling Group"
+  value       = aws_autoscaling_group.webapp_asg.max_size
 }
 
 # --------------------------------------------------------------------------------------
 # CONFIGURATION OUTPUTS
 # --------------------------------------------------------------------------------------
-
 output "aws_region_used" {
   description = "AWS region where resources were deployed"
   value       = var.aws_build_region
@@ -66,14 +68,18 @@ output "aws_machine_type" {
 }
 
 output "application_url" {
-  description = "URL to access the application"
-  value       = "http://${aws_instance.web.public_ip}:${var.app_port}"
+  description = "URL to access the application via domain name"
+  value       = "http://${var.environment}.${var.domain_name}"
+}
+
+output "load_balancer_dns" {
+  description = "DNS name of the load balancer"
+  value       = aws_lb.app_lb.dns_name
 }
 
 # --------------------------------------------------------------------------------------
 # DATABASE OUTPUTS
 # --------------------------------------------------------------------------------------
-
 output "rds_endpoint" {
   description = "Endpoint of the RDS instance"
   value       = aws_db_instance.csye6225_db.endpoint
