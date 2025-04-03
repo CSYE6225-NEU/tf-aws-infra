@@ -21,7 +21,7 @@ variable "aws_profile" {
 variable "aws_base_ami" {
   description = "ID of the custom AMI created by Packer for the application"
   type        = string
-  default     = "ami-008c469fcb8faa0a1"
+  default     = "ami-0ebacff5f98e781b1"
 }
 
 variable "aws_vm_size" {
@@ -90,6 +90,62 @@ variable "target_account_id" {
   description = "AWS account ID for the target environment"
   type        = string
   default     = "980921746832"
+}
+
+# --------------------------------------------------------------------------------------
+# DOMAIN VARIABLES
+# --------------------------------------------------------------------------------------
+
+variable "domain_name" {
+  description = "Base domain name for the application"
+  type        = string
+  default     = "cloud-infra.me"
+}
+
+variable "environment" {
+  description = "Environment name (dev or demo)"
+  type        = string
+  default     = "dev"
+}
+
+# --------------------------------------------------------------------------------------
+# AUTO SCALING VARIABLES
+# --------------------------------------------------------------------------------------
+
+variable "asg_min_size" {
+  description = "Minimum number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 3
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 5
+}
+
+variable "asg_desired_capacity" {
+  description = "Desired number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 3
+}
+
+variable "asg_cooldown" {
+  description = "Cooldown period in seconds for the Auto Scaling Group"
+  type        = number
+  default     = 60
+}
+
+variable "scale_up_threshold" {
+  description = "CPU utilization threshold to scale up"
+  type        = number
+  default     = 5
+}
+
+variable "scale_down_threshold" {
+  description = "CPU utilization threshold to scale down"
+  type        = number
+  default     = 3
 }
 
 # --------------------------------------------------------------------------------------
