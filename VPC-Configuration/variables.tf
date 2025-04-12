@@ -11,7 +11,7 @@ variable "aws_build_region" {
 variable "aws_profile" {
   description = "AWS CLI profile for authentication"
   type        = string
-  default     = "packerdev"
+  default     = "packerdemo"
 }
 
 # --------------------------------------------------------------------------------------
@@ -21,7 +21,7 @@ variable "aws_profile" {
 variable "aws_base_ami" {
   description = "ID of the custom AMI created by Packer for the application"
   type        = string
-  default     = "ami-0ebacff5f98e781b1"
+  default     = "ami-05934a21a1c2a9533"
 }
 
 variable "aws_vm_size" {
@@ -105,7 +105,7 @@ variable "domain_name" {
 variable "environment" {
   description = "Environment name (dev or demo)"
   type        = string
-  default     = "dev"
+  default     = "demo"
 }
 
 # --------------------------------------------------------------------------------------
@@ -222,8 +222,8 @@ variable "db_port" {
   default     = 3306
 }
 
-variable "db_password" {
-  description = "Master password for database"
-  type        = string
-  sensitive   = true
-}
+# variable "db_password" {
+#   description = "Master password for database"
+#   type        = string
+#   sensitive   = true
+# }

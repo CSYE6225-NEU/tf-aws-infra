@@ -28,13 +28,14 @@ resource "aws_s3_bucket_public_access_block" "app_files" {
   restrict_public_buckets = true
 }
 
-# Enable default encryption for S3 bucket
+# Enable KMS encryption for S3 bucket
 resource "aws_s3_bucket_server_side_encryption_configuration" "app_files" {
   bucket = aws_s3_bucket.app_files.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.s3_key.arn
+      sse_algorithm     = "aws:kms"
     }
   }
 }

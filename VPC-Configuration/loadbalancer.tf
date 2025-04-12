@@ -54,7 +54,7 @@ resource "aws_lb" "app_lb" {
   }
 }
 
-# Target group for the load balancer
+# Target group for the load balancer with improved health checks
 resource "aws_lb_target_group" "app_tg" {
   name     = "webapp-tg"
   port     = var.app_port
@@ -63,17 +63,48 @@ resource "aws_lb_target_group" "app_tg" {
 
   health_check {
     enabled             = true
-    path                = "/"
+    path                = "/healthz"
     port                = "traffic-port"
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 5
+    timeout             = 10
     interval            = 30
     matcher             = "200"
   }
 
   tags = {
     Name = "WebApp-TG"
+  }
+}
+
+# Data source for ACM certificate in dev environment
+data "aws_acm_certificate" "dev_cert" {
+  count    = var.environment == "dev" ? 1 : 0
+  domain   = "${var.environment}.${var.domain_name}"
+  statuses = ["ISSUED"]
+}
+
+# Import the certificate for demo environment
+resource "aws_acm_certificate" "demo_cert" {
+  count             = var.environment == "demo" ? 1 : 0
+  private_key       = file("${path.module}/certs/demo_private.key")
+  certificate_body  = file("${path.module}/certs/demo_cloud-infra_me.crt")
+  certificate_chain = file("${path.module}/certs/demo_cloud-infra_me.ca-bundle")
+}
+
+# HTTPS listener for the load balancer
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.app_lb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+
+  # Use the appropriate certificate based on environment
+  certificate_arn = var.environment == "dev" ? data.aws_acm_certificate.dev_cert[0].arn : aws_acm_certificate.demo_cert[0].arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
 

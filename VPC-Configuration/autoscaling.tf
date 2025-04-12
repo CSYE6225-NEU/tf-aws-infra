@@ -25,42 +25,125 @@ resource "aws_launch_template" "app_launch_template" {
       volume_size           = var.volume_size
       volume_type           = var.volume_type
       delete_on_termination = true
+      encrypted             = true
+      kms_key_id            = aws_kms_key.ec2_key.arn
     }
   }
 
-  # User data script to configure application with database details and CloudWatch
+  # Improved user data script with proper escaping
   user_data = base64encode(<<-EOF
 #!/bin/bash
-# Create application config directory if it doesn't exist
-mkdir -p /opt/csye6225
+set -e
+
+# Log all script execution for debugging
+exec > >(tee /var/log/user-data.log) 2>&1
+echo "Starting instance initialization at $$(date)"
+
+# Update packages and install dependencies
+apt-get update
+apt-get install -y python3 python3-pip nodejs npm awscli jq unzip curl
+
+# Create application directories
+mkdir -p /opt/csye6225/app
+mkdir -p /opt/csye6225/logs
+
+# Retrieve database credentials from AWS Secrets Manager
+echo "Retrieving database credentials from Secrets Manager..."
+DB_SECRET=$$(aws secretsmanager get-secret-value --secret-id csye6225/db/password --region ${var.aws_build_region} --query SecretString --output text)
+DB_PASSWORD=$$(echo $$DB_SECRET | jq -r '.password')
 
 # Create application config file
 cat > /opt/csye6225/.env <<EOL
 # Database Configuration
 DB_HOST=${aws_db_instance.csye6225_db.address}
 DB_PORT=${var.db_port}
-DB_NAME=${aws_db_instance.csye6225_db.db_name}
-DB_USER=${aws_db_instance.csye6225_db.username}
-DB_PASSWORD=${var.db_password}
+DB_NAME=csye6225
+DB_USER=csye6225
+DB_PASSWORD=$$DB_PASSWORD
 
 # S3 Configuration
 S3_BUCKET_NAME=${aws_s3_bucket.app_files.id}
 PORT=${var.app_port}
 EOL
 
-# Update permissions
-chown csye6225:csye6225 /opt/csye6225/.env
 chmod 600 /opt/csye6225/.env
 
-# Create empty log file for application logs
-touch /opt/csye6225/webapp.log
-chown csye6225:csye6225 /opt/csye6225/webapp.log
-chmod 644 /opt/csye6225/webapp.log
+# Create a simple health check server
+cat > /opt/csye6225/app/server.js <<EOL
+const http = require('http');
+const fs = require('fs');
+const port = process.env.PORT || ${var.app_port};
 
-# Get instance ID from metadata service
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+const server = http.createServer((req, res) => {
+  if (req.url === '/healthz' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+  } else if (req.url === '/cicd') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', message: 'CI/CD endpoint working', timestamp: new Date().toISOString() }));
+  } else {
+    res.writeHead(404);
+    res.end(JSON.stringify({ status: 'not found' }));
+  }
+});
 
-# Configure CloudWatch agent
+server.listen(port, () => {
+  console.log(\`Server running on port \$${port}\`);
+  // Log to a file for CloudWatch to pick up
+  fs.appendFileSync('/opt/csye6225/logs/webapp.log', \`Server started at \$${new Date().toISOString()}\n\`);
+});
+
+// Handle errors
+server.on('error', (err) => {
+  console.error(\`Server error: \$${err.message}\`);
+  fs.appendFileSync('/opt/csye6225/logs/webapp.log', \`ERROR: \$${err.message} at \$${new Date().toISOString()}\n\`);
+});
+EOL
+
+# Create a systemd service file for the application
+cat > /etc/systemd/system/webapp.service <<EOL
+[Unit]
+Description=Web Application Service
+After=network.target
+
+[Service]
+Environment=NODE_ENV=production
+WorkingDirectory=/opt/csye6225/app
+EnvironmentFile=/opt/csye6225/.env
+ExecStart=/usr/bin/node /opt/csye6225/app/server.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/csye6225/logs/webapp.log
+StandardError=append:/opt/csye6225/logs/webapp.log
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Install node if not present
+if ! command -v node &> /dev/null; then
+  echo "Installing Node.js..."
+  curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
+  apt-get install -y nodejs
+fi
+
+# Create log file and set permissions
+touch /opt/csye6225/logs/webapp.log
+chmod 644 /opt/csye6225/logs/webapp.log
+
+# Enable and start the application service
+systemctl daemon-reload
+systemctl enable webapp.service
+systemctl start webapp.service
+
+# Setup CloudWatch agent for monitoring
+curl -o /tmp/amazon-cloudwatch-agent.deb https://amazoncloudwatch-agent.s3.amazonaws.com/debian/amd64/latest/amazon-cloudwatch-agent.deb
+dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+
+# Configure CloudWatch Agent
+mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
 {
   "agent": {
@@ -73,20 +156,14 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
         "collect_list": [
           {
             "file_path": "/var/log/syslog",
-            "log_group_name": "$INSTANCE_ID-system-logs",
-            "log_stream_name": "syslog",
+            "log_group_name": "syslog",
+            "log_stream_name": "{instance_id}",
             "timezone": "UTC"
           },
           {
-            "file_path": "/var/log/amazon/amazon-cloudwatch-agent/amazon-cloudwatch-agent.log",
-            "log_group_name": "$INSTANCE_ID-cloudwatch-agent-logs",
-            "log_stream_name": "amazon-cloudwatch-agent.log",
-            "timezone": "UTC"
-          },
-          {
-            "file_path": "/opt/csye6225/webapp.log",
-            "log_group_name": "$INSTANCE_ID-application-logs",
-            "log_stream_name": "webapp.log",
+            "file_path": "/opt/csye6225/logs/webapp.log",
+            "log_group_name": "webapp-logs",
+            "log_stream_name": "{instance_id}",
             "timezone": "UTC"
           }
         ]
@@ -94,60 +171,28 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOL
     }
   },
   "metrics": {
-    "namespace": "CSYE6225/Custom",
-    "append_dimensions": {
-      "InstanceId": "$INSTANCE_ID",
-      "InstanceType": "${var.aws_vm_size}"
-    },
     "metrics_collected": {
-      "statsd": {
-        "service_address": ":8125",
-        "metrics_collection_interval": 10,
-        "metrics_aggregation_interval": 60
-      },
       "cpu": {
         "resources": ["*"],
-        "measurement": [
-          "cpu_usage_idle",
-          "cpu_usage_iowait",
-          "cpu_usage_user",
-          "cpu_usage_system"
-        ],
-        "totalcpu": true
-      },
-      "disk": {
-        "resources": ["*"],
-        "measurement": [
-          "used_percent",
-          "inodes_free"
-        ]
-      },
-      "diskio": {
-        "resources": ["*"],
-        "measurement": [
-          "io_time"
-        ]
+        "measurement": ["cpu_usage_idle", "cpu_usage_user", "cpu_usage_system"]
       },
       "mem": {
-        "measurement": [
-          "mem_used_percent"
-        ]
+        "measurement": ["mem_used_percent"]
       },
-      "swap": {
-        "measurement": [
-          "swap_used_percent"
-        ]
+      "disk": {
+        "resources": ["/"],
+        "measurement": ["disk_used_percent"]
       }
     }
   }
 }
 EOL
 
-# Restart CloudWatch agent
-systemctl restart amazon-cloudwatch-agent
+# Start CloudWatch agent
+systemctl enable amazon-cloudwatch-agent
+systemctl start amazon-cloudwatch-agent
 
-# Restart application service
-systemctl restart webapp.service
+echo "Instance setup completed at $$(date)"
 EOF
   )
 
@@ -165,8 +210,9 @@ resource "aws_autoscaling_group" "webapp_asg" {
   min_size            = 3
   max_size            = 5
   desired_capacity    = 3
-  default_cooldown    = 60
+  default_cooldown    = 300
   vpc_zone_identifier = aws_subnet.public[*].id
+  depends_on          = [aws_db_instance.csye6225_db]
 
   launch_template {
     id      = aws_launch_template.app_launch_template.id
@@ -174,6 +220,10 @@ resource "aws_autoscaling_group" "webapp_asg" {
   }
 
   target_group_arns = [aws_lb_target_group.app_tg.arn]
+
+  # Extended health check grace period to allow for proper instance initialization
+  health_check_grace_period = 900
+  health_check_type         = "ELB"
 
   tag {
     key                 = "Name"
@@ -186,6 +236,17 @@ resource "aws_autoscaling_group" "webapp_asg" {
     value               = "CSYE6225"
     propagate_at_launch = true
   }
+
+  # Timeouts - removed unsupported "create" argument
+  timeouts {
+    delete = "20m"
+    update = "20m"
+  }
+
+  # Ignore changes to desired capacity from scaling policies
+  lifecycle {
+    ignore_changes = [desired_capacity]
+  }
 }
 
 # Scale Up Policy - CPU Utilization
@@ -194,7 +255,7 @@ resource "aws_autoscaling_policy" "scale_up" {
   autoscaling_group_name = aws_autoscaling_group.webapp_asg.name
   adjustment_type        = "ChangeInCapacity"
   scaling_adjustment     = 1
-  cooldown               = 60
+  cooldown               = 300
   policy_type            = "SimpleScaling"
 }
 
@@ -204,7 +265,7 @@ resource "aws_autoscaling_policy" "scale_down" {
   autoscaling_group_name = aws_autoscaling_group.webapp_asg.name
   adjustment_type        = "ChangeInCapacity"
   scaling_adjustment     = -1
-  cooldown               = 60
+  cooldown               = 300
   policy_type            = "SimpleScaling"
 }
 
@@ -215,7 +276,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   evaluation_periods  = 2
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
-  period              = 60
+  period              = 300
   statistic           = "Average"
   threshold           = 5
   alarm_description   = "Scale up when CPU exceeds 5%"
@@ -233,7 +294,7 @@ resource "aws_cloudwatch_metric_alarm" "low_cpu" {
   evaluation_periods  = 2
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
-  period              = 60
+  period              = 300
   statistic           = "Average"
   threshold           = 3
   alarm_description   = "Scale down when CPU is below 3%"
