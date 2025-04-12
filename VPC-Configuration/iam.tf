@@ -41,7 +41,7 @@ resource "aws_iam_policy" "s3_access_policy" {
         ]
         Effect = "Allow"
         Resource = [
-          "${aws_s3_bucket.app_files.arn}",
+          aws_s3_bucket.app_files.arn,
           "${aws_s3_bucket.app_files.arn}/*"
         ]
       }
@@ -66,7 +66,9 @@ resource "aws_iam_policy" "cloudwatch_policy" {
           "logs:DescribeLogStreams",
           "logs:DescribeLogGroups",
           "logs:CreateLogStream",
-          "logs:CreateLogGroup"
+          "logs:CreateLogGroup",
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
         ]
         Effect   = "Allow"
         Resource = "*"
@@ -84,6 +86,34 @@ resource "aws_iam_policy" "cloudwatch_policy" {
   })
 }
 
+# Custom policy for KMS access
+resource "aws_iam_policy" "kms_access_policy" {
+  name        = "KMS-Access"
+  description = "Policy allowing EC2 access to KMS keys"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:ReEncrypt*"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_kms_key.ec2_key.arn,
+          aws_kms_key.rds_key.arn,
+          aws_kms_key.s3_key.arn,
+          aws_kms_key.secrets_key.arn
+        ]
+      }
+    ]
+  })
+}
+
 # Attach S3 policy to role
 resource "aws_iam_role_policy_attachment" "s3_policy_attachment" {
   role       = aws_iam_role.ec2_role.name
@@ -94,6 +124,12 @@ resource "aws_iam_role_policy_attachment" "s3_policy_attachment" {
 resource "aws_iam_role_policy_attachment" "cloudwatch_policy_attachment" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = aws_iam_policy.cloudwatch_policy.arn
+}
+
+# Attach KMS policy to role
+resource "aws_iam_role_policy_attachment" "kms_policy_attachment" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.kms_access_policy.arn
 }
 
 # Instance profile for EC2

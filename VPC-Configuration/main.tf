@@ -122,13 +122,22 @@ resource "aws_security_group" "application_sg" {
     description = "SSH access"
   }
 
-  # Application port access from load balancer only
+  # Application port access from load balancer
   ingress {
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
     security_groups = [aws_security_group.lb_sg.id]
     description     = "Application port access from load balancer"
+  }
+
+  # Allow ICMP for ping (helpful for debugging)
+  ingress {
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow ping"
   }
 
   # Allow all outbound traffic
@@ -142,5 +151,45 @@ resource "aws_security_group" "application_sg" {
 
   tags = {
     Name = "Web-Instance-Application-SG"
+  }
+}
+# Deployment order dependencies
+locals {
+  dependencies = {
+    network_deps = [
+      aws_vpc.main,
+      aws_internet_gateway.gw,
+      aws_subnet.public,
+      aws_subnet.private,
+      aws_route_table.public_rt,
+      aws_route_table.private_rt,
+      aws_route_table_association.public_assoc,
+      aws_route_table_association.private_assoc
+    ]
+    
+    security_deps = [
+      aws_security_group.application_sg,
+      aws_security_group.database_sg,
+      aws_security_group.lb_sg,
+      aws_iam_role.ec2_role,
+      aws_iam_policy.s3_access_policy,
+      aws_iam_policy.cloudwatch_policy,
+      aws_iam_policy.secrets_access_policy,
+      aws_iam_role_policy_attachment.s3_policy_attachment,
+      aws_iam_role_policy_attachment.cloudwatch_policy_attachment,
+      aws_iam_role_policy_attachment.secrets_policy_attachment,
+      aws_iam_instance_profile.ec2_profile
+    ]
+    
+    kms_deps = [
+      aws_kms_key.ec2_key,
+      aws_kms_key.rds_key,
+      aws_kms_key.s3_key,
+      aws_kms_key.secrets_key,
+      aws_kms_alias.ec2_key_alias,
+      aws_kms_alias.rds_key_alias,
+      aws_kms_alias.s3_key_alias,
+      aws_kms_alias.secrets_key_alias
+    ]
   }
 }
