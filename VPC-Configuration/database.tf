@@ -65,13 +65,13 @@ resource "aws_db_instance" "csye6225_db" {
   publicly_accessible    = false
   skip_final_snapshot    = true
   multi_az               = false
-  
+
   # Keep encryption disabled initially to get the deployment working
   # After the KMS key issues are resolved, you can enable this
-  storage_encrypted      = false
+  storage_encrypted = false
   # Comment out the kms_key_id until the KMS key issues are resolved
   # kms_key_id             = aws_kms_key.rds_key.arn
-  
+
   tags = {
     Name = "CSYE6225-DB"
   }

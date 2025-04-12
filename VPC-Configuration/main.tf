@@ -166,7 +166,7 @@ locals {
       aws_route_table_association.public_assoc,
       aws_route_table_association.private_assoc
     ]
-    
+
     security_deps = [
       aws_security_group.application_sg,
       aws_security_group.database_sg,
@@ -180,7 +180,7 @@ locals {
       aws_iam_role_policy_attachment.secrets_policy_attachment,
       aws_iam_instance_profile.ec2_profile
     ]
-    
+
     kms_deps = [
       aws_kms_key.ec2_key,
       aws_kms_key.rds_key,

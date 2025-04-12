@@ -59,7 +59,7 @@ resource "aws_secretsmanager_secret_version" "email_service" {
 resource "aws_iam_policy" "secrets_access_policy" {
   name        = "Secrets-Manager-Access"
   description = "Policy allowing EC2 access to Secrets Manager"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -68,7 +68,7 @@ resource "aws_iam_policy" "secrets_access_policy" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ],
-        Effect   = "Allow",
+        Effect = "Allow",
         Resource = [
           aws_secretsmanager_secret.db_password.arn,
           aws_secretsmanager_secret.email_service.arn

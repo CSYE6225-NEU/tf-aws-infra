@@ -98,9 +98,9 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-2016-08"
-  
+
   # Use the appropriate certificate based on environment
-  certificate_arn   = var.environment == "dev" ? data.aws_acm_certificate.dev_cert[0].arn : aws_acm_certificate.demo_cert[0].arn
+  certificate_arn = var.environment == "dev" ? data.aws_acm_certificate.dev_cert[0].arn : aws_acm_certificate.demo_cert[0].arn
 
   default_action {
     type             = "forward"

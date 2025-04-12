@@ -242,7 +242,7 @@ resource "aws_autoscaling_group" "webapp_asg" {
     delete = "20m"
     update = "20m"
   }
-  
+
   # Ignore changes to desired capacity from scaling policies
   lifecycle {
     ignore_changes = [desired_capacity]
